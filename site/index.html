@@ -4,9 +4,10 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
     <meta name="theme-color" content="#071018" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
     <meta
       name="description"
-      content="Browser sensor lab for swing tracking — DeviceMotion experiments for motion games."
+      content="Mobile swing lab — DeviceMotion peaks drive low-poly throw, bowl, bat, and golf physics."
     />
     <link rel="icon" href="./favicon.svg" type="image/svg+xml" />
     <title>Swing Lab · Sensor Experiments</title>
@@ -21,163 +22,151 @@
   <body>
     <div class="atmosphere" aria-hidden="true"></div>
 
-    <header class="hero">
+    <header class="topbar">
       <p class="brand">Swing Lab</p>
-      <h1>Can a phone track a swing like a Wii remote?</h1>
-      <p class="lede">
-        Live DeviceMotion experiment for peak detection, direction, and timing —
-        the building blocks of tennis, golf, and bowling clones.
-      </p>
-      <div class="cta-row">
-        <button type="button" id="enable-sensors" class="btn btn-primary">
-          Enable motion sensors
+      <nav class="tabs" role="tablist" aria-label="Views">
+        <button type="button" class="tab is-active" role="tab" aria-selected="true" data-tab="lab" id="tab-lab">
+          Lab
         </button>
-        <button type="button" id="toggle-sim" class="btn btn-ghost">
-          Run simulated swings
+        <button type="button" class="tab" role="tab" aria-selected="false" data-tab="play" id="tab-play">
+          Play
         </button>
-      </div>
-      <p id="status" class="status" role="status">Sensors idle · HTTPS + permission required on iOS</p>
+      </nav>
     </header>
 
-    <main>
-      <section class="panel live" aria-labelledby="live-heading">
-        <div class="panel-head">
-          <h2 id="live-heading">Live instruments</h2>
-          <p>Acceleration magnitude and axes update every sample.</p>
-        </div>
+    <div class="pager" id="pager">
+      <!-- LAB -->
+      <section class="page page-lab" id="page-lab" role="tabpanel" aria-labelledby="tab-lab">
+        <div class="page-inner">
+          <p class="lede">
+            Peak-detect phone swings, then swipe to Play to drive low-poly throw / bowl / bat / golf.
+          </p>
 
-        <div class="viz-wrap">
-          <canvas id="wave" width="960" height="220" aria-label="Acceleration magnitude waveform"></canvas>
-          <div class="bat-stage" aria-hidden="true">
-            <div id="bat" class="bat"></div>
+          <div class="cta-row">
+            <button type="button" id="enable-sensors" class="btn btn-primary">Enable sensors</button>
+            <button type="button" id="toggle-sim" class="btn btn-ghost">Simulate</button>
           </div>
-        </div>
+          <p id="status" class="status" role="status">Sensors idle · HTTPS + permission on iOS</p>
 
-        <div class="meters" role="group" aria-label="Axis meters">
-          <div class="meter">
-            <span class="meter-label">ax</span>
-            <div class="meter-track"><i id="bar-x"></i></div>
-            <span class="meter-val" id="val-x">0.00</span>
-          </div>
-          <div class="meter">
-            <span class="meter-label">ay</span>
-            <div class="meter-track"><i id="bar-y"></i></div>
-            <span class="meter-val" id="val-y">0.00</span>
-          </div>
-          <div class="meter">
-            <span class="meter-label">az</span>
-            <div class="meter-track"><i id="bar-z"></i></div>
-            <span class="meter-val" id="val-z">0.00</span>
-          </div>
-          <div class="meter meter-mag">
-            <span class="meter-label">|a|</span>
-            <div class="meter-track"><i id="bar-mag"></i></div>
-            <span class="meter-val" id="val-mag">0.00</span>
-          </div>
-        </div>
+          <section class="panel live" aria-labelledby="live-heading">
+            <div class="panel-head">
+              <h2 id="live-heading">Live instruments</h2>
+            </div>
+            <div class="viz-wrap">
+              <canvas id="wave" width="960" height="180" aria-label="Acceleration magnitude waveform"></canvas>
+              <div class="bat-stage" aria-hidden="true"><div id="bat" class="bat"></div></div>
+            </div>
+            <div class="meters" role="group" aria-label="Axis meters">
+              <div class="meter">
+                <span class="meter-label">ax</span>
+                <div class="meter-track"><i id="bar-x"></i></div>
+                <span class="meter-val" id="val-x">0.00</span>
+              </div>
+              <div class="meter">
+                <span class="meter-label">ay</span>
+                <div class="meter-track"><i id="bar-y"></i></div>
+                <span class="meter-val" id="val-y">0.00</span>
+              </div>
+              <div class="meter">
+                <span class="meter-label">az</span>
+                <div class="meter-track"><i id="bar-z"></i></div>
+                <span class="meter-val" id="val-z">0.00</span>
+              </div>
+              <div class="meter meter-mag">
+                <span class="meter-label">|a|</span>
+                <div class="meter-track"><i id="bar-mag"></i></div>
+                <span class="meter-val" id="val-mag">0.00</span>
+              </div>
+            </div>
+            <dl class="stats">
+              <div><dt>Rate</dt><dd id="stat-rate">—</dd></div>
+              <div><dt>Peak</dt><dd id="stat-peak">0.00</dd></div>
+              <div><dt>Swings</dt><dd id="stat-swings">0</dd></div>
+              <div><dt>Last</dt><dd id="stat-last">—</dd></div>
+            </dl>
+          </section>
 
-        <dl class="stats">
-          <div>
-            <dt>Sample rate</dt>
-            <dd id="stat-rate">—</dd>
-          </div>
-          <div>
-            <dt>Peak |a|</dt>
-            <dd id="stat-peak">0.00 m/s²</dd>
-          </div>
-          <div>
-            <dt>Swings</dt>
-            <dd id="stat-swings">0</dd>
-          </div>
-          <div>
-            <dt>Last swing</dt>
-            <dd id="stat-last">—</dd>
-          </div>
-        </dl>
+          <section class="panel tune" aria-labelledby="tune-heading">
+            <div class="panel-head">
+              <h2 id="tune-heading">Detection tuning</h2>
+            </div>
+            <form id="tune-form" class="tune-grid">
+              <label>
+                <span>Peak threshold</span>
+                <input id="threshold" type="range" min="4" max="40" step="0.5" value="12" />
+                <output for="threshold" id="threshold-out">12</output>
+              </label>
+              <label>
+                <span>Reset floor</span>
+                <input id="reset-floor" type="range" min="1" max="15" step="0.5" value="4" />
+                <output for="reset-floor" id="reset-floor-out">4</output>
+              </label>
+              <label>
+                <span>Min duration ms</span>
+                <input id="min-duration" type="range" min="20" max="250" step="5" value="40" />
+                <output for="min-duration" id="min-duration-out">40</output>
+              </label>
+              <label>
+                <span>Cooldown ms</span>
+                <input id="cooldown" type="range" min="50" max="800" step="10" value="220" />
+                <output for="cooldown" id="cooldown-out">220</output>
+              </label>
+              <label class="check">
+                <input id="use-linear" type="checkbox" checked />
+                <span>Prefer linear accel when available</span>
+              </label>
+            </form>
+          </section>
+
+          <section class="panel log" aria-labelledby="log-heading">
+            <div class="panel-head">
+              <h2 id="log-heading">Swing log</h2>
+            </div>
+            <div class="table-wrap">
+              <table>
+                <thead>
+                  <tr>
+                    <th>#</th>
+                    <th>Time</th>
+                    <th>Peak</th>
+                    <th>ms</th>
+                    <th>Axis</th>
+                  </tr>
+                </thead>
+                <tbody id="swing-log"></tbody>
+              </table>
+            </div>
+            <p id="empty-log" class="empty">No swings yet — enable sensors and take a cut.</p>
+          </section>
+        </div>
       </section>
 
-      <section class="panel tune" aria-labelledby="tune-heading">
-        <div class="panel-head">
-          <h2 id="tune-heading">Detection tuning</h2>
-          <p>Raise threshold to ignore noise; lower to catch soft swings.</p>
-        </div>
+      <!-- PLAY -->
+      <section class="page page-play" id="page-play" role="tabpanel" aria-labelledby="tab-play" hidden>
+        <div class="play-shell">
+          <div class="play-modes" role="group" aria-label="Sport mode">
+            <button type="button" class="mode-chip is-active" data-mode="throw">Throw</button>
+            <button type="button" class="mode-chip" data-mode="bowl">Bowl</button>
+            <button type="button" class="mode-chip" data-mode="bat">Bat</button>
+            <button type="button" class="mode-chip" data-mode="golf">Golf</button>
+          </div>
 
-        <form id="tune-form" class="tune-grid">
-          <label>
-            <span>Peak threshold (m/s²)</span>
-            <input id="threshold" type="range" min="4" max="40" step="0.5" value="12" />
-            <output for="threshold" id="threshold-out">12</output>
-          </label>
-          <label>
-            <span>Reset floor (m/s²)</span>
-            <input id="reset-floor" type="range" min="1" max="15" step="0.5" value="4" />
-            <output for="reset-floor" id="reset-floor-out">4</output>
-          </label>
-          <label>
-            <span>Min duration (ms)</span>
-            <input id="min-duration" type="range" min="20" max="250" step="5" value="40" />
-            <output for="min-duration" id="min-duration-out">40</output>
-          </label>
-          <label>
-            <span>Cooldown (ms)</span>
-            <input id="cooldown" type="range" min="50" max="800" step="10" value="220" />
-            <output for="cooldown" id="cooldown-out">220</output>
-          </label>
-          <label class="check">
-            <input id="use-linear" type="checkbox" checked />
-            <span>Prefer accelerationIncludingGravity off (linear when available)</span>
-          </label>
-        </form>
+          <div class="play-stage">
+            <canvas id="play-canvas" aria-label="Low-poly physics playground"></canvas>
+            <div class="play-hud" id="play-hud">
+              <p class="hud-line" id="hud-mode">Throw</p>
+              <p class="hud-line" id="hud-power">Power —</p>
+              <p class="hud-hint" id="hud-hint">Swing phone or tap Simulate on Lab</p>
+            </div>
+          </div>
+
+          <div class="play-actions">
+            <button type="button" id="play-fire" class="btn btn-primary">Fire demo swing</button>
+            <button type="button" id="play-reset" class="btn btn-ghost">Reset scene</button>
+          </div>
+        </div>
       </section>
-
-      <section class="panel log" aria-labelledby="log-heading">
-        <div class="panel-head">
-          <h2 id="log-heading">Swing log</h2>
-          <p>Each detected peak with dominant axis and estimated direction.</p>
-        </div>
-        <div class="table-wrap">
-          <table>
-            <thead>
-              <tr>
-                <th>#</th>
-                <th>Time</th>
-                <th>Peak</th>
-                <th>Duration</th>
-                <th>Axis</th>
-                <th>Direction</th>
-              </tr>
-            </thead>
-            <tbody id="swing-log"></tbody>
-          </table>
-        </div>
-        <p id="empty-log" class="empty">No swings yet — enable sensors and take a cut.</p>
-      </section>
-
-      <section class="panel notes" aria-labelledby="notes-heading">
-        <div class="panel-head">
-          <h2 id="notes-heading">Feasibility notes</h2>
-          <p>What this experiment is measuring for a motion-game prototype.</p>
-        </div>
-        <ul class="notes-list">
-          <li>
-            <strong>Peak magnitude</strong> is reliable enough for “did they swing?” events on modern phones.
-          </li>
-          <li>
-            <strong>Direction</strong> from a single accel peak is coarse; gyro integration or relative orientation helps for aim.
-          </li>
-          <li>
-            <strong>iOS Safari</strong> requires a user gesture + <code>DeviceMotionEvent.requestPermission()</code> over HTTPS.
-          </li>
-          <li>
-            <strong>Desktop browsers</strong> usually lack motion sensors — use Simulate to exercise detection logic.
-          </li>
-        </ul>
-      </section>
-    </main>
-
-    <footer class="foot">
-      <p>Sensor Experiments · static lab for GitHub Pages</p>
-    </footer>
+    </div>
 
     <script type="module" src="./js/app.js"></script>
   </body>
