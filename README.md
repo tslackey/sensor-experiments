@@ -1,43 +1,22 @@
 # Sensor Experiments
 
-Browser lab for motion-game sensor feasibility — swing peak detection with DeviceMotion.
+Mobile-first browser lab for motion-game sensor feasibility.
 
-## Live site
+**Live:** https://tslackey.github.io/sensor-experiments/
 
-After the first successful Pages deploy:
+## Views
 
-**https://tslackey.github.io/sensor-experiments/**
+- **Lab** — DeviceMotion peak detection, tuning, swing log
+- **Play** — swipeable low-poly Three.js scenes (throw / bowl / bat / golf) driven by the same swing events
 
-## Swing Lab
-
-Open [`site/index.html`](site/index.html) (or the Pages URL) to:
-
-1. Enable DeviceMotion (iOS prompts for permission on tap)
-2. Watch live accel magnitude / axes
-3. Tune peak threshold, reset floor, duration, and cooldown
-4. Log detected swings with dominant axis + direction
-5. Run **simulated swings** on desktop when no IMU is available
-
-## Local preview
-
-Any static server from the `site` folder works, e.g.:
+## Local
 
 ```bash
 python3 -m http.server 4173 --directory site
 ```
 
-Then open `http://localhost:4173`. Sensors need a secure context on many browsers; localhost counts.
+Open `http://localhost:4173` on a phone (HTTPS/ngrok for real sensors) or use **Simulate**.
 
 ## GitHub Pages
 
-Workflow: [`.github/workflows/deploy-pages.yml`](.github/workflows/deploy-pages.yml)
-
-- Triggers on push to `main` and `workflow_dispatch`
-- Uploads the `site/` directory as a Pages artifact
-- Deploys with `actions/deploy-pages`
-
-The deploy workflow passes `enablement: true` so the first run can create the Pages site with **GitHub Actions** as the source. You can also set that manually under **Settings → Pages → Build and deployment**.
-
-## License
-
-Unlicense — see [LICENSE](LICENSE).
+Workflow: `.github/workflows/deploy-pages.yml` publishes `site/` on push to `main`.

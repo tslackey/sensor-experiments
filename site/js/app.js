@@ -6,10 +6,16 @@ import {
 } from "./sensors.js";
 import { SwingDetector } from "./swing-detector.js";
 import { Waveform, setMeter, tiltBat } from "./viz.js";
+import { PlayArena, MODES, powerFromSwing } from "./play.js";
 
 const $ = (id) => document.getElementById(id);
 
 const ui = {
+  tabLab: $("tab-lab"),
+  tabPlay: $("tab-play"),
+  pager: $("pager"),
+  pageLab: $("page-lab"),
+  pagePlay: $("page-play"),
   enable: $("enable-sensors"),
   sim: $("toggle-sim"),
   status: $("status"),
@@ -38,18 +44,39 @@ const ui = {
   cooldown: $("cooldown"),
   cooldownOut: $("cooldown-out"),
   useLinear: $("use-linear"),
+  playCanvas: $("play-canvas"),
+  hudMode: $("hud-mode"),
+  hudPower: $("hud-power"),
+  hudHint: $("hud-hint"),
+  playFire: $("play-fire"),
+  playReset: $("play-reset"),
 };
 
 const stream = new SensorStream({ preferLinear: true });
 const detector = new SwingDetector();
 const wave = new Waveform(ui.wave);
 
+const arena = new PlayArena(ui.playCanvas, {
+  onHud: (info) => {
+    const mode = String(info.mode || arena.mode);
+    ui.hudMode.textContent = mode.charAt(0).toUpperCase() + mode.slice(1);
+    if (typeof info.power === "number" && info.power > 0) {
+      ui.hudPower.textContent = `Power ${(info.power * 100).toFixed(0)}%`;
+    } else if (info.state === "ready") {
+      ui.hudPower.textContent = "Power —";
+    }
+    if (info.state === "hit") ui.hudHint.textContent = "Contact!";
+    else if (info.state === "swing") ui.hudHint.textContent = "Swing mapped → physics";
+    else ui.hudHint.textContent = "Swing phone or tap Fire demo swing";
+  },
+});
+
 let swingCount = 0;
 let sessionPeak = 0;
 let simulating = false;
 let simTimer = 0;
 let simPhase = 0;
-let lastSample = { ax: 0, ay: 0, az: 0, t: 0 };
+let activeTab = "lab";
 
 function setStatus(text, kind = "") {
   ui.status.textContent = text;
@@ -75,19 +102,81 @@ ui.useLinear.addEventListener("change", () => {
   stream.setPreferLinear(ui.useLinear.checked);
 });
 
+function showTab(name, { scroll = true } = {}) {
+  activeTab = name;
+  const lab = name === "lab";
+  ui.tabLab.classList.toggle("is-active", lab);
+  ui.tabPlay.classList.toggle("is-active", !lab);
+  ui.tabLab.setAttribute("aria-selected", String(lab));
+  ui.tabPlay.setAttribute("aria-selected", String(!lab));
+  ui.pagePlay.hidden = false;
+  if (scroll) {
+    (lab ? ui.pageLab : ui.pagePlay).scrollIntoView({
+      behavior: "smooth",
+      inline: "start",
+      block: "nearest",
+    });
+  }
+  if (!lab) {
+    arena.resize();
+    arena.start();
+  }
+}
+
+ui.tabLab.addEventListener("click", () => showTab("lab"));
+ui.tabPlay.addEventListener("click", () => showTab("play"));
+
+ui.pager.addEventListener(
+  "scroll",
+  () => {
+    const w = ui.pager.clientWidth || 1;
+    const next = ui.pager.scrollLeft > w * 0.5 ? "play" : "lab";
+    if (next !== activeTab) showTab(next, { scroll: false });
+  },
+  { passive: true }
+);
+
+document.querySelectorAll(".mode-chip").forEach((btn) => {
+  btn.addEventListener("click", () => {
+    const mode = btn.getAttribute("data-mode");
+    if (!mode || !MODES.includes(mode)) return;
+    document.querySelectorAll(".mode-chip").forEach((b) => {
+      b.classList.toggle("is-active", b === btn);
+    });
+    arena.setMode(mode);
+  });
+});
+
+ui.playReset.addEventListener("click", () => {
+  arena.setMode(arena.mode);
+});
+
+ui.playFire.addEventListener("click", () => {
+  const demo = {
+    id: 0,
+    peak: 16 + Math.random() * 10,
+    durationMs: 90,
+    axis: "x",
+    direction: {
+      x: (Math.random() - 0.5) * 0.8,
+      y: -0.2 - Math.random() * 0.4,
+      z: 0.6 + Math.random() * 0.3,
+    },
+  };
+  arena.triggerSwing(demo);
+  ui.hudHint.textContent = `Demo ${(powerFromSwing(demo) * 100).toFixed(0)}% power`;
+});
+
 stream.onSample = (sample) => {
-  lastSample = sample;
   const mag = detector.push(sample);
   sessionPeak = Math.max(sessionPeak, mag);
-
   setMeter(ui.barX, ui.valX, sample.ax);
   setMeter(ui.barY, ui.valY, sample.ay);
   setMeter(ui.barZ, ui.valZ, sample.az);
   setMeter(ui.barMag, ui.valMag, mag, 50);
   tiltBat(ui.bat, sample.ax, sample.ay, sample.az);
-
   wave.push(mag);
-  ui.peak.textContent = `${sessionPeak.toFixed(2)} m/s²`;
+  ui.peak.textContent = sessionPeak.toFixed(2);
   ui.rate.textContent = stream.sampleRateHz
     ? `${stream.sampleRateHz.toFixed(0)} Hz · ${sample.source}`
     : `— · ${sample.source}`;
@@ -96,43 +185,41 @@ stream.onSample = (sample) => {
 detector.onSwing = (swing) => {
   swingCount += 1;
   ui.swings.textContent = String(swingCount);
-  ui.last.textContent = `${swing.peak.toFixed(1)} on ${swing.axis}`;
+  ui.last.textContent = `${swing.peak.toFixed(1)} ${swing.axis}`;
   wave.flash();
   ui.bat.classList.add("is-hit");
   window.setTimeout(() => ui.bat.classList.remove("is-hit"), 180);
   prependLog(swing);
+  arena.triggerSwing(swing);
+  if (activeTab !== "play") {
+    setStatus(`Swing #${swing.id} → Play (${arena.mode})`, "is-ok");
+  }
 };
 
 function prependLog(swing) {
   ui.empty.classList.add("is-hidden");
   const tr = document.createElement("tr");
-  const when = new Date();
-  const time = when.toLocaleTimeString(undefined, {
+  const time = new Date().toLocaleTimeString(undefined, {
     hour: "2-digit",
     minute: "2-digit",
     second: "2-digit",
   });
-  const dir = swing.direction;
   tr.innerHTML = `
     <td>${swing.id}</td>
     <td>${time}</td>
     <td>${swing.peak.toFixed(2)}</td>
-    <td>${swing.durationMs.toFixed(0)} ms</td>
+    <td>${swing.durationMs.toFixed(0)}</td>
     <td>${swing.axis}</td>
-    <td>${dir.x.toFixed(2)}, ${dir.y.toFixed(2)}, ${dir.z.toFixed(2)}</td>
   `;
   ui.log.prepend(tr);
-  while (ui.log.children.length > 40) {
-    ui.log.lastElementChild?.remove();
-  }
+  while (ui.log.children.length > 30) ui.log.lastElementChild?.remove();
 }
 
 async function enableSensors() {
   if (!sensorsSupported() && !simulating) {
-    setStatus("DeviceMotion not available in this browser — try Simulate.", "is-warn");
+    setStatus("DeviceMotion missing — use Simulate.", "is-warn");
     return;
   }
-
   try {
     if (needsMotionPermission()) {
       setStatus("Requesting motion permission…", "is-warn");
@@ -142,22 +229,21 @@ async function enableSensors() {
         return;
       }
     }
-
     stopSimulation();
     stream.start();
     ui.enable.classList.add("is-live");
     ui.enable.textContent = "Sensors live";
-    setStatus("Listening for swings — take a cut with the phone.", "is-ok");
+    setStatus("Listening — swing, then swipe to Play.", "is-ok");
   } catch (err) {
     console.error(err);
-    setStatus(`Permission / sensor error: ${err.message || err}`, "is-err");
+    setStatus(`Sensor error: ${err.message || err}`, "is-err");
   }
 }
 
 function stopSimulation() {
   simulating = false;
   ui.sim.classList.remove("is-on");
-  ui.sim.textContent = "Run simulated swings";
+  ui.sim.textContent = "Simulate";
   if (simTimer) {
     window.clearInterval(simTimer);
     simTimer = 0;
@@ -170,35 +256,28 @@ function startSimulation() {
     setStatus("Simulation stopped.", "is-warn");
     return;
   }
-
   stream.stop();
   ui.enable.classList.remove("is-live");
-  ui.enable.textContent = "Enable motion sensors";
+  ui.enable.textContent = "Enable sensors";
   simulating = true;
   ui.sim.classList.add("is-on");
-  ui.sim.textContent = "Stop simulation";
-  setStatus("Simulation on — synthetic swings every ~1.6s.", "is-ok");
-
+  ui.sim.textContent = "Stop sim";
+  setStatus("Sim on — synthetic swings ~1.6s.", "is-ok");
   simPhase = 0;
-  // ~60 Hz synthetic stream
   simTimer = window.setInterval(() => {
     simPhase += 1;
     const t = performance.now();
-    // Quiet baseline with occasional swing envelope
     const cycle = simPhase % 100;
     let ax = (Math.random() - 0.5) * 0.4;
     let ay = (Math.random() - 0.5) * 0.4;
     let az = (Math.random() - 0.5) * 0.4;
-
     if (cycle >= 55 && cycle <= 68) {
-      // Bell-shaped lateral swing burst
       const u = (cycle - 55) / 13;
       const envelope = Math.sin(Math.PI * u);
       ax = 18 * envelope + (Math.random() - 0.5);
       ay = 6 * envelope;
       az = -4 * envelope;
     }
-
     stream.pushSim(ax, ay, az, t);
   }, 16);
 }
@@ -206,10 +285,7 @@ function startSimulation() {
 ui.enable.addEventListener("click", () => {
   void enableSensors();
 });
-
-ui.sim.addEventListener("click", () => {
-  startSimulation();
-});
+ui.sim.addEventListener("click", () => startSimulation());
 
 function frame(now) {
   wave.draw(now);
@@ -218,14 +294,16 @@ function frame(now) {
 requestAnimationFrame(frame);
 
 if (!sensorsSupported()) {
-  setStatus("No DeviceMotion API here — use simulated swings on desktop.", "is-warn");
+  setStatus("No DeviceMotion — Simulate on Lab, then swipe to Play.", "is-warn");
 } else if (!window.isSecureContext) {
-  setStatus("Needs a secure context (HTTPS or localhost) for sensors.", "is-err");
+  setStatus("Needs HTTPS or localhost for sensors.", "is-err");
 } else if (needsMotionPermission()) {
-  setStatus("iOS-style permission required — tap Enable motion sensors.", "is-warn");
+  setStatus("Tap Enable sensors for iOS permission.", "is-warn");
 } else {
-  setStatus("Sensors ready — tap Enable motion sensors, then swing.", "");
+  setStatus("Ready — enable sensors, swing, swipe to Play.", "");
 }
 
-// Expose a tiny debug hook for manual tests
-window.__swingLab = { stream, detector, wave, lastSample: () => lastSample };
+ui.pagePlay.hidden = false;
+showTab("lab", { scroll: false });
+
+window.__swingLab = { stream, detector, arena, wave };

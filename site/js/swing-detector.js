@@ -1,7 +1,5 @@
 /**
- * Simple rising-edge peak detector for swing feasibility experiments.
- *
- * State machine: idle → rising → falling → cooldown → idle
+ * Rising-edge peak detector for swing events.
  */
 
 /**
@@ -26,7 +24,6 @@ export class SwingDetector {
     this.resetFloor = resetFloor;
     this.minDurationMs = minDurationMs;
     this.cooldownMs = cooldownMs;
-
     this._state = "idle";
     this._riseStart = 0;
     this._peak = 0;
@@ -37,28 +34,15 @@ export class SwingDetector {
     this.onSwing = null;
   }
 
-  configure( partial ) {
+  configure(partial) {
     Object.assign(this, partial);
   }
 
-  reset() {
-    this._state = "idle";
-    this._riseStart = 0;
-    this._peak = 0;
-    this._peakVec = { x: 0, y: 0, z: 0 };
-    this._cooldownUntil = 0;
-  }
-
-  /**
-   * @param {{ t: number, ax: number, ay: number, az: number }} sample
-   */
+  /** @param {{ t: number, ax: number, ay: number, az: number }} sample */
   push(sample) {
     const mag = Math.hypot(sample.ax, sample.ay, sample.az);
     const t = sample.t;
-
-    if (t < this._cooldownUntil) {
-      return mag;
-    }
+    if (t < this._cooldownUntil) return mag;
 
     if (this._state === "idle") {
       if (mag >= this.threshold) {
@@ -75,9 +59,7 @@ export class SwingDetector {
         this._peak = mag;
         this._peakVec = { x: sample.ax, y: sample.ay, z: sample.az };
       }
-      if (mag < this._peak * 0.85) {
-        this._state = "falling";
-      }
+      if (mag < this._peak * 0.85) this._state = "falling";
       return mag;
     }
 
@@ -88,7 +70,6 @@ export class SwingDetector {
         this._state = "rising";
         return mag;
       }
-
       if (mag <= this.resetFloor) {
         const durationMs = t - this._riseStart;
         if (durationMs >= this.minDurationMs && this._peak >= this.threshold) {
@@ -97,31 +78,26 @@ export class SwingDetector {
         this._state = "idle";
         this._cooldownUntil = t + this.cooldownMs;
       }
-      return mag;
     }
-
     return mag;
   }
 
   _emit(t, durationMs) {
     const { x, y, z } = this._peakVec;
     const abs = { x: Math.abs(x), y: Math.abs(y), z: Math.abs(z) };
-    /** @type {'x' | 'y' | 'z'} */
+    /** @type {'x'|'y'|'z'} */
     let axis = "x";
     if (abs.y >= abs.x && abs.y >= abs.z) axis = "y";
     else if (abs.z >= abs.x && abs.z >= abs.y) axis = "z";
-
-    const norm = Math.hypot(x, y, z) || 1;
-    /** @type {SwingEvent} */
+    const n = Math.hypot(x, y, z) || 1;
     const swing = {
       id: ++this._id,
       t,
       peak: this._peak,
       durationMs,
       axis,
-      direction: { x: x / norm, y: y / norm, z: z / norm },
+      direction: { x: x / n, y: y / n, z: z / n },
     };
-
     if (this.onSwing) this.onSwing(swing);
   }
 }
