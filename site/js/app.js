@@ -13,6 +13,8 @@ const $ = (id) => document.getElementById(id);
 const ui = {
   tabLab: $("tab-lab"),
   tabPlay: $("tab-play"),
+  gotoPlay: $("goto-play"),
+  buildLabel: $("build-label"),
   pager: $("pager"),
   pageLab: $("page-lab"),
   pagePlay: $("page-play"),
@@ -51,6 +53,27 @@ const ui = {
   playFire: $("play-fire"),
   playReset: $("play-reset"),
 };
+
+function applyBuildLabel(label) {
+  if (ui.buildLabel) ui.buildLabel.textContent = label;
+  document.title = `Swing Lab ${label} · Sensor Experiments`;
+}
+
+async function loadBuildInfo() {
+  const stamped = ui.buildLabel?.textContent?.trim();
+  if (stamped && !stamped.includes("__BUILD_NUMBER__")) {
+    document.title = `Swing Lab ${stamped} · Sensor Experiments`;
+  }
+  try {
+    const res = await fetch("./build.json", { cache: "no-store" });
+    if (!res.ok) throw new Error("build.json missing");
+    const info = await res.json();
+    const label = info.label || (info.build != null ? `v${info.build}` : "vdev");
+    applyBuildLabel(label);
+  } catch {
+    if (stamped?.includes("__BUILD_NUMBER__")) applyBuildLabel("vdev");
+  }
+}
 
 const stream = new SensorStream({ preferLinear: true });
 const detector = new SwingDetector();
@@ -125,6 +148,7 @@ function showTab(name, { scroll = true } = {}) {
 
 ui.tabLab.addEventListener("click", () => showTab("lab"));
 ui.tabPlay.addEventListener("click", () => showTab("play"));
+ui.gotoPlay?.addEventListener("click", () => showTab("play"));
 
 ui.pager.addEventListener(
   "scroll",
@@ -305,5 +329,6 @@ if (!sensorsSupported()) {
 
 ui.pagePlay.hidden = false;
 showTab("lab", { scroll: false });
+void loadBuildInfo();
 
 window.__swingLab = { stream, detector, arena, wave };

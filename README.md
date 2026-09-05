@@ -20,3 +20,5 @@ Open `http://localhost:4173` on a phone (HTTPS/ngrok for real sensors) or use **
 ## GitHub Pages
 
 Workflow: `.github/workflows/deploy-pages.yml` publishes `site/` on push to `main`.
+
+Each deploy stamps `site/build.json` with the workflow `run_number` and shows it in the header as **Swing Lab vN**.

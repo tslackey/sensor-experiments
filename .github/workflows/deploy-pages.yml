@@ -22,6 +22,16 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
+      - name: Stamp GitHub Pages build number
+        env:
+          BUILD_NUMBER: ${{ github.run_number }}
+        run: |
+          printf '{\n  "build": %s,\n  "label": "v%s"\n}\n' "$BUILD_NUMBER" "$BUILD_NUMBER" > site/build.json
+          # Replace placeholders baked into the static site at deploy time.
+          find site -type f \( -name '*.html' -o -name '*.js' -o -name '*.css' -o -name '*.svg' -o -name '*.json' \) \
+            -exec sed -i "s/__BUILD_NUMBER__/${BUILD_NUMBER}/g" {} +
+          echo "Stamped build v${BUILD_NUMBER}"
+
       - name: Setup Pages
         uses: actions/configure-pages@v5
         with:

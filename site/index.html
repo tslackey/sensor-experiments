@@ -10,53 +10,147 @@
       content="Mobile swing lab — DeviceMotion peaks drive low-poly throw, bowl, bat, and golf physics."
     />
     <link rel="icon" href="./favicon.svg" type="image/svg+xml" />
-    <title>Swing Lab · Sensor Experiments</title>
+    <title>Swing Lab v__BUILD_NUMBER__ · Sensor Experiments</title>
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link
       href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,500;12..96,700;12..96,800&family=IBM+Plex+Mono:wght@400;500;600&display=swap"
       rel="stylesheet"
     />
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+      tailwind.config = {
+        theme: {
+          extend: {
+            colors: {
+              ink: "#e8f4f2",
+              mute: "#8aa3a8",
+              cyan: { DEFAULT: "#2fe0c4", dim: "rgba(47,224,196,0.18)", deep: "#042018" },
+              amber: { DEFAULT: "#ffb020", deep: "#2a1800" },
+              rose: "#ff6b6b",
+              panel: "rgba(10,24,34,0.82)",
+              line: "rgba(120,180,176,0.22)",
+              night: { 0: "#071018", 1: "#0c1a24", 2: "#09131c" },
+            },
+            fontFamily: {
+              display: ['"Bricolage Grotesque"', "Georgia", "serif"],
+              mono: ['"IBM Plex Mono"', "ui-monospace", "monospace"],
+            },
+            boxShadow: {
+              panel: "0 18px 40px rgba(0,0,0,0.35)",
+            },
+            borderRadius: {
+              panel: "16px",
+            },
+          },
+        },
+      };
+    </script>
     <link rel="stylesheet" href="./css/styles.css" />
   </head>
-  <body>
+  <body class="flex h-full min-h-0 flex-col overflow-hidden font-display text-ink bg-night-0">
     <div class="atmosphere" aria-hidden="true"></div>
 
-    <header class="topbar">
-      <p class="brand">Swing Lab</p>
-      <nav class="tabs" role="tablist" aria-label="Views">
-        <button type="button" class="tab is-active" role="tab" aria-selected="true" data-tab="lab" id="tab-lab">
-          Lab
-        </button>
-        <button type="button" class="tab" role="tab" aria-selected="false" data-tab="play" id="tab-play">
-          Play
-        </button>
+    <header class="topbar z-20 shrink-0 border-b border-line bg-night-0/90 backdrop-blur-md">
+      <div class="flex items-end justify-between gap-3 px-3 pt-[max(0.65rem,env(safe-area-inset-top))] pb-2">
+        <p class="brand m-0 text-[1.55rem] font-extrabold tracking-tight leading-none sm:text-2xl">
+          Swing Lab
+          <span
+            id="build-label"
+            class="align-top ml-1 font-mono text-[0.72rem] font-semibold tracking-normal text-cyan/90"
+            title="GitHub Pages build number"
+            >v__BUILD_NUMBER__</span
+          >
+        </p>
+        <p class="m-0 hidden text-[0.7rem] text-mute sm:block">sensor → physics</p>
+      </div>
+
+      <nav class="tabs px-3 pb-3" role="tablist" aria-label="Views">
+        <div
+          class="grid grid-cols-2 gap-2 rounded-2xl border border-line bg-white/[0.04] p-1.5 shadow-panel"
+        >
+          <button
+            type="button"
+            class="tab is-active min-h-[3.6rem] rounded-xl px-3.5 py-3 text-left transition"
+            role="tab"
+            aria-selected="true"
+            data-tab="lab"
+            id="tab-lab"
+          >
+            <span class="block text-[1.05rem] font-extrabold leading-none tracking-tight sm:text-lg"
+              >Lab</span
+            >
+            <span class="mt-1 block text-[0.72rem] font-medium leading-none opacity-80"
+              >Sensors &amp; peaks</span
+            >
+          </button>
+          <button
+            type="button"
+            class="tab min-h-[3.6rem] rounded-xl px-3.5 py-3 text-left transition"
+            role="tab"
+            aria-selected="false"
+            data-tab="play"
+            id="tab-play"
+          >
+            <span class="block text-[1.05rem] font-extrabold leading-none tracking-tight sm:text-lg"
+              >Play</span
+            >
+            <span class="mt-1 block text-[0.72rem] font-medium leading-none opacity-80"
+              >3D physics</span
+            >
+          </button>
+        </div>
       </nav>
     </header>
 
-    <div class="pager" id="pager">
+    <div class="pager min-h-0 flex-1" id="pager">
       <!-- LAB -->
       <section class="page page-lab" id="page-lab" role="tabpanel" aria-labelledby="tab-lab">
-        <div class="page-inner">
-          <p class="lede">
-            Peak-detect phone swings, then swipe to Play to drive low-poly throw / bowl / bat / golf.
+        <div class="page-inner grid gap-3 px-3 pb-[calc(1.4rem+env(safe-area-inset-bottom))] pt-3">
+          <p class="lede m-0 max-w-[40ch] text-[0.95rem] leading-snug text-mute">
+            Peak-detect phone swings, then open <strong class="font-semibold text-ink">Play</strong> for
+            low-poly throw / bowl / bat / golf.
           </p>
 
-          <div class="cta-row">
+          <button
+            type="button"
+            id="goto-play"
+            class="group flex w-full items-center justify-between gap-3 rounded-2xl border border-cyan/40 bg-cyan-dim px-4 py-3.5 text-left transition hover:border-cyan"
+          >
+            <span>
+              <span class="block text-[1rem] font-extrabold tracking-tight text-cyan"
+                >Open Play · 3D physics</span
+              >
+              <span class="mt-0.5 block text-[0.75rem] text-mute"
+                >Swipe or tap — Throw, Bowl, Bat, Golf</span
+              >
+            </span>
+            <span
+              class="grid h-10 w-10 shrink-0 place-items-center rounded-full bg-cyan text-cyan-deep text-lg font-extrabold transition group-hover:translate-x-0.5"
+              aria-hidden="true"
+              >→</span
+            >
+          </button>
+
+          <div class="cta-row flex flex-wrap gap-2">
             <button type="button" id="enable-sensors" class="btn btn-primary">Enable sensors</button>
             <button type="button" id="toggle-sim" class="btn btn-ghost">Simulate</button>
           </div>
-          <p id="status" class="status" role="status">Sensors idle · HTTPS + permission on iOS</p>
+          <p id="status" class="status m-0 font-mono text-[0.75rem] text-mute" role="status">
+            Sensors idle · HTTPS + permission on iOS
+          </p>
 
-          <section class="panel live" aria-labelledby="live-heading">
+          <section class="panel live rounded-panel border border-line bg-panel p-3.5 shadow-panel" aria-labelledby="live-heading">
             <div class="panel-head">
-              <h2 id="live-heading">Live instruments</h2>
+              <h2 id="live-heading" class="m-0 mb-2.5 text-[1.05rem] font-bold tracking-tight">
+                Live instruments
+              </h2>
             </div>
-            <div class="viz-wrap">
+            <div class="viz-wrap grid gap-2">
               <canvas id="wave" width="960" height="180" aria-label="Acceleration magnitude waveform"></canvas>
               <div class="bat-stage" aria-hidden="true"><div id="bat" class="bat"></div></div>
             </div>
-            <div class="meters" role="group" aria-label="Axis meters">
+            <div class="meters mt-3 grid gap-2" role="group" aria-label="Axis meters">
               <div class="meter">
                 <span class="meter-label">ax</span>
                 <div class="meter-track"><i id="bar-x"></i></div>
@@ -78,17 +172,31 @@
                 <span class="meter-val" id="val-mag">0.00</span>
               </div>
             </div>
-            <dl class="stats">
-              <div><dt>Rate</dt><dd id="stat-rate">—</dd></div>
-              <div><dt>Peak</dt><dd id="stat-peak">0.00</dd></div>
-              <div><dt>Swings</dt><dd id="stat-swings">0</dd></div>
-              <div><dt>Last</dt><dd id="stat-last">—</dd></div>
+            <dl class="stats mt-3 grid grid-cols-2 gap-2">
+              <div>
+                <dt>Rate</dt>
+                <dd id="stat-rate">—</dd>
+              </div>
+              <div>
+                <dt>Peak</dt>
+                <dd id="stat-peak">0.00</dd>
+              </div>
+              <div>
+                <dt>Swings</dt>
+                <dd id="stat-swings">0</dd>
+              </div>
+              <div>
+                <dt>Last</dt>
+                <dd id="stat-last">—</dd>
+              </div>
             </dl>
           </section>
 
-          <section class="panel tune" aria-labelledby="tune-heading">
+          <section class="panel tune rounded-panel border border-line bg-panel p-3.5 shadow-panel" aria-labelledby="tune-heading">
             <div class="panel-head">
-              <h2 id="tune-heading">Detection tuning</h2>
+              <h2 id="tune-heading" class="m-0 mb-2.5 text-[1.05rem] font-bold tracking-tight">
+                Detection tuning
+              </h2>
             </div>
             <form id="tune-form" class="tune-grid">
               <label>
@@ -118,11 +226,11 @@
             </form>
           </section>
 
-          <section class="panel log" aria-labelledby="log-heading">
+          <section class="panel log rounded-panel border border-line bg-panel p-3.5 shadow-panel" aria-labelledby="log-heading">
             <div class="panel-head">
-              <h2 id="log-heading">Swing log</h2>
+              <h2 id="log-heading" class="m-0 mb-2.5 text-[1.05rem] font-bold tracking-tight">Swing log</h2>
             </div>
-            <div class="table-wrap">
+            <div class="table-wrap overflow-x-auto">
               <table>
                 <thead>
                   <tr>
@@ -136,33 +244,37 @@
                 <tbody id="swing-log"></tbody>
               </table>
             </div>
-            <p id="empty-log" class="empty">No swings yet — enable sensors and take a cut.</p>
+            <p id="empty-log" class="empty mt-2 text-[0.85rem] text-mute">
+              No swings yet — enable sensors and take a cut.
+            </p>
           </section>
         </div>
       </section>
 
       <!-- PLAY -->
       <section class="page page-play" id="page-play" role="tabpanel" aria-labelledby="tab-play" hidden>
-        <div class="play-shell">
-          <div class="play-modes" role="group" aria-label="Sport mode">
+        <div class="play-shell grid h-full grid-rows-[auto_1fr_auto] gap-2 px-2.5 pb-[calc(0.75rem+env(safe-area-inset-bottom))] pt-2.5">
+          <div class="play-modes flex gap-2 overflow-x-auto pb-0.5" role="group" aria-label="Sport mode">
             <button type="button" class="mode-chip is-active" data-mode="throw">Throw</button>
             <button type="button" class="mode-chip" data-mode="bowl">Bowl</button>
             <button type="button" class="mode-chip" data-mode="bat">Bat</button>
             <button type="button" class="mode-chip" data-mode="golf">Golf</button>
           </div>
 
-          <div class="play-stage">
+          <div class="play-stage relative min-h-0 overflow-hidden rounded-2xl border border-line bg-night-2 shadow-panel">
             <canvas id="play-canvas" aria-label="Low-poly physics playground"></canvas>
-            <div class="play-hud" id="play-hud">
-              <p class="hud-line" id="hud-mode">Throw</p>
-              <p class="hud-line" id="hud-power">Power —</p>
-              <p class="hud-hint" id="hud-hint">Swing phone or tap Simulate on Lab</p>
+            <div class="play-hud pointer-events-none absolute left-3 right-3 top-3 grid gap-0.5" id="play-hud">
+              <p class="hud-line m-0 font-mono text-[0.78rem] text-ink" id="hud-mode">Throw</p>
+              <p class="hud-line m-0 font-mono text-[0.78rem] text-ink" id="hud-power">Power —</p>
+              <p class="hud-hint m-0 mt-1 text-[0.75rem] text-mute" id="hud-hint">
+                Swing phone or tap Simulate on Lab
+              </p>
             </div>
           </div>
 
-          <div class="play-actions">
-            <button type="button" id="play-fire" class="btn btn-primary">Fire demo swing</button>
-            <button type="button" id="play-reset" class="btn btn-ghost">Reset scene</button>
+          <div class="play-actions flex gap-2">
+            <button type="button" id="play-fire" class="btn btn-primary flex-1 text-center">Fire demo swing</button>
+            <button type="button" id="play-reset" class="btn btn-ghost flex-1 text-center">Reset scene</button>
           </div>
         </div>
       </section>
