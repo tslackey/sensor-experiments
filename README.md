@@ -36,7 +36,7 @@ Workflow: [`.github/workflows/deploy-pages.yml`](.github/workflows/deploy-pages.
 - Uploads the `site/` directory as a Pages artifact
 - Deploys with `actions/deploy-pages`
 
-One-time repo setting: **Settings → Pages → Build and deployment → Source: GitHub Actions**.
+The deploy workflow passes `enablement: true` so the first run can create the Pages site with **GitHub Actions** as the source. You can also set that manually under **Settings → Pages → Build and deployment**.
 
 ## License
 
