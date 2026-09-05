@@ -21,11 +21,12 @@ export function powerFromSwing(swing) {
   return Math.max(0.22, Math.min(1, (swing.peak - 6) / 28));
 }
 
+/** Aim down-lane (−Z) toward targets/pins/flag, never toward the camera. */
 export function aimFromSwing(swing) {
-  const d = swing.direction;
+  const d = swing?.direction || { x: 0, y: 0, z: -1 };
   const lateral = THREE.MathUtils.clamp(d.x * 0.95 + d.z * 0.15, -1, 1);
   const loft = THREE.MathUtils.clamp(-d.y * 0.5 + 0.28, 0.08, 0.9);
-  return new THREE.Vector3(lateral, loft, 1).normalize();
+  return new THREE.Vector3(lateral, loft, -1).normalize();
 }
 
 export class PlayArena {
@@ -76,6 +77,10 @@ export class PlayArena {
     this.hit = false;
     this.pending = null;
 
+    /** Bowl: hold → swing → release */
+    this.bowlHolding = false;
+    this.bowlArmed = null;
+
     this._ro = new ResizeObserver(() => this.resize());
     this._ro.observe(canvas.parentElement || canvas);
 
@@ -86,8 +91,15 @@ export class PlayArena {
   setMode(mode) {
     if (!MODES.includes(mode)) return;
     this.mode = mode;
+    this.bowlHolding = false;
+    this.bowlArmed = null;
     this._rebuild();
-    this._emit({ mode, state: "ready", power: 0 });
+    this._emit({
+      mode,
+      state: "ready",
+      power: 0,
+      hint: mode === "bowl" ? "Hold ball, swing, then release" : undefined,
+    });
   }
 
   cycleMode(dir = 1) {
@@ -130,13 +142,83 @@ export class PlayArena {
     this.camera.updateProjectionMatrix();
   }
 
+  /** Press/hold the bowl control. */
+  beginBowlHold() {
+    if (this.mode !== "bowl") return false;
+    this.bowlHolding = true;
+    this.bowlArmed = null;
+    this.alive = false;
+    if (this.ball) {
+      this.ball.position.set(0, 0.72, 7.1);
+      this.vel.set(0, 0, 0);
+    }
+    this._emit({ mode: "bowl", state: "holding", power: 0, hint: "Holding — swing, then release" });
+    return true;
+  }
+
+  /** Release after hold; bowls with armed swing or a soft gutter toss. */
+  releaseBowlHold() {
+    if (this.mode !== "bowl" || !this.bowlHolding) return false;
+    this.bowlHolding = false;
+    const armed = this.bowlArmed;
+    this.bowlArmed = null;
+    if (armed) {
+      const power = powerFromSwing(armed);
+      const aim = aimFromSwing(armed);
+      this._emit({ mode: "bowl", state: "swing", power, peak: armed.peak, axis: armed.axis });
+      this._fireBowl(power, aim);
+    } else {
+      const power = 0.38;
+      const aim = new THREE.Vector3(0, 0.12, -1).normalize();
+      this._emit({ mode: "bowl", state: "swing", power, hint: "Released without swing — soft toss" });
+      this._fireBowl(power, aim);
+    }
+    return true;
+  }
+
+  cancelBowlHold() {
+    if (!this.bowlHolding) return;
+    this.bowlHolding = false;
+    this.bowlArmed = null;
+    if (this.mode === "bowl" && this.ball && !this.alive) {
+      this.ball.position.set(0, 0.48, 7);
+    }
+    this._emit({ mode: "bowl", state: "ready", power: 0, hint: "Hold ball, swing, then release" });
+  }
+
   /** @param {any} swing */
   triggerSwing(swing) {
     const power = powerFromSwing(swing);
     const aim = aimFromSwing(swing);
+
+    if (this.mode === "bowl") {
+      if (!this.bowlHolding) {
+        this._emit({
+          mode: "bowl",
+          state: "need-hold",
+          power: 0,
+          hint: "Hold the ball first, then swing & release",
+        });
+        return;
+      }
+      this.bowlArmed = swing;
+      if (this.ball) {
+        // Nudge ball with aim preview while still held.
+        this.ball.position.set(aim.x * 0.35, 0.78, 7.05);
+      }
+      this._emit({
+        mode: "bowl",
+        state: "armed",
+        power,
+        peak: swing.peak,
+        axis: swing.axis,
+        hint: "Armed — release to bowl",
+      });
+      return;
+    }
+
     this._emit({ mode: this.mode, state: "swing", power, peak: swing.peak, axis: swing.axis });
     if (this.mode === "throw") this._fireThrow(power, aim);
-    else if (this.mode === "bowl") this._fireBowl(power, aim);
     else if (this.mode === "bat") this._fireBat(power, aim);
     else this._fireGolf(power, aim);
   }
@@ -163,14 +245,18 @@ export class PlayArena {
     this.alive = false;
     this.hit = false;
     this.pending = null;
+    this.spin = 0;
+    this.vel.set(0, 0, 0);
   }
 
   _rebuild() {
     this._wipe();
+    this.camera.fov = 48;
     if (this.mode === "throw") this._sceneThrow();
     else if (this.mode === "bowl") this._sceneBowl();
     else if (this.mode === "bat") this._sceneBat();
     else this._sceneGolf();
+    this.camera.updateProjectionMatrix();
   }
 
   _addGround(w, d, color) {
@@ -203,8 +289,9 @@ export class PlayArena {
       this.root.add(t);
     }
     this._addBall(0.28, 0xf4f7fa, 0, 1.15, 4.2);
-    this.camera.position.set(0, 3.2, 9);
-    this.camera.lookAt(0, 1.3, 0);
+    // Behind thrower, looking toward targets (−Z).
+    this.camera.position.set(0, 3.4, 10.2);
+    this.camera.lookAt(0, 1.2, -3);
   }
 
   _sceneBowl() {
@@ -232,11 +319,14 @@ export class PlayArena {
     for (const [x, z] of spots) {
       const pin = this._makePin();
       pin.position.set(x, 0.18, z);
+      pin.userData.home.set(x, 0.18, z);
       this.root.add(pin);
       this.pins.push(pin);
     }
-    this.camera.position.set(0, 4.1, 11);
-    this.camera.lookAt(0, 0.5, -2);
+    // Over-the-ball lane view toward pins.
+    this.camera.fov = 40;
+    this.camera.position.set(0, 2.55, 11.2);
+    this.camera.lookAt(0, 0.35, -7.5);
   }
 
   _makePin() {
@@ -250,7 +340,12 @@ export class PlayArena {
     stripe.rotation.x = Math.PI / 2;
     stripe.position.y = 0.52;
     g.add(body, head, stripe);
-    g.userData = { upright: true, vel: new THREE.Vector3(), ang: 0 };
+    g.userData = {
+      upright: true,
+      vel: new THREE.Vector3(),
+      ang: 0,
+      home: new THREE.Vector3(),
+    };
     return g;
   }
 
@@ -313,15 +408,18 @@ export class PlayArena {
     this.toolTarget = -0.8;
     club.rotation.z = this.toolAngle;
 
-    this.camera.position.set(2.4, 3.5, 9.2);
-    this.camera.lookAt(0, 0.5, -2);
+    // Behind the ball, looking down the fairway toward the flag.
+    this.camera.fov = 42;
+    this.camera.position.set(1.6, 2.35, 9.4);
+    this.camera.lookAt(0, 0.55, -5.5);
   }
 
   _fireThrow(power, aim) {
     if (!this.ball) return;
     this.ball.position.set(0, 1.2, 4.2);
     this.vel.copy(aim).multiplyScalar(8 + power * 16);
-    this.vel.y += 2.2 + power * 4;
+    this.vel.z = -Math.abs(this.vel.z);
+    this.vel.y = Math.max(this.vel.y, 2.2 + power * 4);
     this.spin = power * 8;
     this.alive = true;
   }
@@ -334,7 +432,8 @@ export class PlayArena {
     this.alive = true;
     for (const pin of this.pins) {
       pin.rotation.set(0, 0, 0);
-      pin.position.y = 0.18;
+      if (pin.userData.home) pin.position.copy(pin.userData.home);
+      else pin.position.y = 0.18;
       pin.userData.upright = true;
       pin.userData.vel.set(0, 0, 0);
       pin.userData.ang = 0;
@@ -390,6 +489,7 @@ export class PlayArena {
           const { power, aim } = this.pending;
           this.alive = true;
           this.vel.copy(aim).multiplyScalar(10 + power * 22);
+          this.vel.z = -Math.abs(this.vel.z);
           this.vel.y = 3 + power * 8;
           this.spin = power * 9;
           this.pending = null;

@@ -79,18 +79,25 @@ const stream = new SensorStream({ preferLinear: true });
 const detector = new SwingDetector();
 const wave = new Waveform(ui.wave);
 
-const arena = new PlayArena(ui.playCanvas, {
+// `let` so onHud can safely run during PlayArena's constructor setMode().
+let arena;
+arena = new PlayArena(ui.playCanvas, {
   onHud: (info) => {
-    const mode = String(info.mode || arena.mode);
+    const mode = String(info.mode || arena?.mode || "throw");
     ui.hudMode.textContent = mode.charAt(0).toUpperCase() + mode.slice(1);
     if (typeof info.power === "number" && info.power > 0) {
       ui.hudPower.textContent = `Power ${(info.power * 100).toFixed(0)}%`;
-    } else if (info.state === "ready") {
-      ui.hudPower.textContent = "Power —";
+    } else if (info.state === "ready" || info.state === "holding") {
+      ui.hudPower.textContent = info.state === "holding" ? "Holding…" : "Power —";
     }
-    if (info.state === "hit") ui.hudHint.textContent = "Contact!";
+    if (info.hint) ui.hudHint.textContent = info.hint;
+    else if (info.state === "hit") ui.hudHint.textContent = "Contact!";
+    else if (info.state === "armed") ui.hudHint.textContent = "Armed — release to bowl";
+    else if (info.state === "holding") ui.hudHint.textContent = "Holding — swing, then release";
     else if (info.state === "swing") ui.hudHint.textContent = "Swing mapped → physics";
+    else if (mode === "bowl") ui.hudHint.textContent = "Hold ball, swing, then release";
     else ui.hudHint.textContent = "Swing phone or tap Fire demo swing";
+    if (arena) syncPlayFireButton();
   },
 });
 
@@ -168,15 +175,28 @@ document.querySelectorAll(".mode-chip").forEach((btn) => {
       b.classList.toggle("is-active", b === btn);
     });
     arena.setMode(mode);
+    syncPlayFireButton();
   });
 });
 
-ui.playReset.addEventListener("click", () => {
-  arena.setMode(arena.mode);
-});
+function syncPlayFireButton() {
+  if (!ui.playFire || !arena) return;
+  const bowl = arena.mode === "bowl";
+  ui.playFire.classList.toggle("is-bowl-hold", bowl);
+  ui.playFire.classList.toggle("is-holding", Boolean(arena.bowlHolding));
+  if (bowl) {
+    ui.playFire.textContent = arena.bowlHolding
+      ? arena.bowlArmed
+        ? "Release to bowl"
+        : "Holding… swing then release"
+      : "Hold to bowl";
+  } else {
+    ui.playFire.textContent = "Fire demo swing";
+  }
+}
 
-ui.playFire.addEventListener("click", () => {
-  const demo = {
+function demoSwing(extra = {}) {
+  return {
     id: 0,
     peak: 16 + Math.random() * 10,
     durationMs: 90,
@@ -184,12 +204,70 @@ ui.playFire.addEventListener("click", () => {
     direction: {
       x: (Math.random() - 0.5) * 0.8,
       y: -0.2 - Math.random() * 0.4,
-      z: 0.6 + Math.random() * 0.3,
+      z: -0.6 - Math.random() * 0.3,
     },
+    ...extra,
   };
+}
+
+ui.playReset.addEventListener("click", () => {
+  arena.cancelBowlHold?.();
+  arena.setMode(arena.mode);
+  syncPlayFireButton();
+});
+
+let bowlPointerId = null;
+
+function onBowlPress(event) {
+  if (arena.mode !== "bowl") return false;
+  event.preventDefault();
+  bowlPointerId = event.pointerId ?? "mouse";
+  ui.playFire.setPointerCapture?.(event.pointerId);
+  arena.beginBowlHold();
+  syncPlayFireButton();
+  return true;
+}
+
+function onBowlRelease(event) {
+  if (arena.mode !== "bowl") return false;
+  if (bowlPointerId != null && event.pointerId != null && event.pointerId !== bowlPointerId) return true;
+  event.preventDefault();
+  bowlPointerId = null;
+  // If no motion swing armed yet, arm a demo swing so release still bowls.
+  if (arena.bowlHolding && !arena.bowlArmed) {
+    arena.triggerSwing(demoSwing({ peak: 18 + Math.random() * 8 }));
+  }
+  arena.releaseBowlHold();
+  syncPlayFireButton();
+  return true;
+}
+
+ui.playFire.addEventListener("pointerdown", (event) => {
+  if (onBowlPress(event)) return;
+});
+
+ui.playFire.addEventListener("pointerup", (event) => {
+  if (onBowlRelease(event)) return;
+});
+
+ui.playFire.addEventListener("pointercancel", (event) => {
+  if (arena.mode !== "bowl") return;
+  bowlPointerId = null;
+  arena.cancelBowlHold?.();
+  syncPlayFireButton();
+});
+
+ui.playFire.addEventListener("click", (event) => {
+  if (arena.mode === "bowl") {
+    event.preventDefault();
+    return;
+  }
+  const demo = demoSwing();
   arena.triggerSwing(demo);
   ui.hudHint.textContent = `Demo ${(powerFromSwing(demo) * 100).toFixed(0)}% power`;
 });
+
+syncPlayFireButton();
 
 stream.onSample = (sample) => {
   const mag = detector.push(sample);
